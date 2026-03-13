@@ -1,13 +1,15 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# This workflow is started manually from the GitHub UI (Actions →
-# Run workflow). It creates the missing android/ and ios/ folders
-# by running `flutter create .` and then injects the flavor block
-# you already defined.
+# This workflow is triggered manually (workflow_dispatch) and will:
+#   1️⃣ Checkout the repo (full history – required for push)
+#   2️⃣ Install Flutter (stable 3.19)
+#   3️⃣ Run `flutter create .` → generates missing android/ & ios/
+#   4️⃣ Overwrite android/app/build.gradle with your flavor block
+#   5️⃣ Commit only if there are changes and push back to the repo
 # --------------------------------------------------------------
 on:
-  workflow_dispatch:   # Enables the “Run workflow” button
+  workflow_dispatch:   # enables the “Run workflow” button in the UI
 
 jobs:
   generate:
@@ -19,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # get the full history so we can push later
+          fetch-depth: 0   # fetch full history so we can push later
 
       # --------------------------------------------------------------
       # 2️⃣ Install Flutter (stable channel, version 3.19.0)
@@ -72,14 +74,24 @@ jobs:
           "}" > android/app/build.gradle
 
       # --------------------------------------------------------------
-      # 5️⃣ Commit the new android/ and ios/ folders and push back
+      # 5️⃣ Commit and push ONLY IF there are changes
       # --------------------------------------------------------------
-      - name: Commit and push changes
+      - name: Commit and push changes (if any)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Configure the bot identity
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
+
+          # Stage the generated folders/files
           git add android ios
-          git commit -m "Add proper Android & iOS directories (flutter create .) – auto‑fixed"
-          git push
+
+          # Check if anything useful was staged
+          if git diff --cached --quiet; then
+            echo "🟢 No changes to commit – everything is already up‑to‑date."
+          else
+            echo "🔧 Changes detected – committing and pushing..."
+            git commit -m "Add proper Android & iOS directories (flutter create .) – auto‑fixed"
+            git push
+          fi
