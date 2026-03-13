@@ -53,5 +53,5 @@ flutter {
 }
 
 dependencies {
-  // No extra Android deps needed for a pure Flutter module.
+  // No extra Android dependencies needed.
 }
