@@ -1,21 +1,18 @@
-// App router
 // lib/routes/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// A placeholder home screen – the only route required for the test.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
   @override
   Widget build(BuildContext context) => const Scaffold(
         body: Center(
-          child: Text('HouseBuddy Home'), // <-- this text is asserted in the test
+          child: Text('HouseBuddy Home'), // the text the test looks for
         ),
       );
 }
 
-/// Minimal GoRouter configuration.  You can extend it later with the
-/// real screens of the app; the test only cares that a router exists.
+// Minimal GoRouter – you can expand it later with all your real screens.
 final GoRouter appRouter = GoRouter(
   routes: [
     GoRoute(
