@@ -1,6 +1,9 @@
 package com.example.housebuddy;
 
-import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.android.FlutterFragmentActivity;
 
-public class MainActivity extends FlutterActivity {
+/**
+ * Updated to use the new Android embedding (v2).
+ */
+public class MainActivity extends FlutterFragmentActivity {
 }
