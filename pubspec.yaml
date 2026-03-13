@@ -54,6 +54,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # -------------------------------------------------
+  #  Asset directories – **must be indented 2 spaces**
+  # -------------------------------------------------
   assets:
     - assets/rive/
     - assets/lottie/
