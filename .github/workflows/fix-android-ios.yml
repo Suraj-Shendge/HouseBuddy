@@ -1,10 +1,16 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# Triggered manually from the GitHub UI
+# This workflow runs manually (workflow_dispatch) and creates
+# the missing Android & iOS directories, overwrites the flavor
+# block, then **pushes the result to a fresh branch**.
 # --------------------------------------------------------------
 on:
   workflow_dispatch:   # enables the “Run workflow” button
+
+# Give the job permission to write to the repo (required for push)
+permissions:
+  contents: write      # allows creating/committing new branches
 
 jobs:
   generate:
@@ -16,7 +22,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so we can push later
+          fetch-depth: 0   # needed for later git push
+          # persist‑credentials is true by default – we keep it
 
       # --------------------------------------------------------------
       # 2️⃣ Install the **latest stable** Flutter (includes Dart 3.4+)
@@ -24,7 +31,7 @@ jobs:
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable   # pulls the newest stable Flutter (3.xx)
+          channel: stable   # pulls newest stable Flutter (3.xx)
 
       # --------------------------------------------------------------
       # 3️⃣ Generate missing platform directories (force a lower‑case name)
@@ -68,24 +75,37 @@ jobs:
           "}" > android/app/build.gradle
 
       # --------------------------------------------------------------
-      # 5️⃣ Commit and push ONLY IF there are changes
+      # 5️⃣ Commit the changes and push to a **new temporary branch**
       # --------------------------------------------------------------
-      - name: Commit and push changes (if any)
+      - name: Commit and push changes to a new branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configure a bot identity for the commit
+          # Configure the bot identity for the commit
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-          # Stage everything that could have been created/modified
+          # Stage the new/changed Android & iOS files
           git add android ios
 
-          # If nothing is staged, exit cleanly
+          # If nothing changed, exit cleanly
           if git diff --cached --quiet; then
-            echo 'No changes to commit – repository already contains the Android/iOS folders.'
-          else
-            echo 'Changes detected – committing and pushing...'
-            git commit -m 'Add Android & iOS directories (flutter create .) - auto‑fixed'
-            git push
+            echo "🟢 No changes to commit – Android/iOS already present."
+            exit 0
           fi
+
+          # Create a descriptive temporary branch name (unique per run)
+          BRANCH="auto-fix-android-ios-${{ github.run_id }}"
+          echo "Creating branch $BRANCH"
+
+          # Create the branch and switch to it
+          git checkout -b "$BRANCH"
+
+          # Commit the changes
+          git commit -m "Add proper Android & iOS directories (flutter create .) – auto‑fixed"
+
+          # Push the new branch back to the repo
+          git push origin "$BRANCH"
+
+          # Output a friendly message for the user
+          echo "✅ Pushed changes to branch $BRANCH – you can open a Pull Request from there."
