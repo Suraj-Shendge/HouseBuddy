@@ -1,35 +1,291 @@
-# --------------------------------------------------------------------
-# Android Debug workflow (example – you’ll have the same change in iOS)
-# --------------------------------------------------------------------
-android-debug:
-  name: Android Debug (Customer)
-  max_build_duration: 30
-  environment:
-    flutter: stable
-    java: '11'
-    vars:
-      API_BASE_URL: "https://staging.api.housebuddy.com"
-  scripts:
-    - name: Install dependencies
-      script: flutter pub get
+# ----------------------------------------------------------------------
+# Codemagic configuration for the HouseBuddy repo (customer + provider apps)
+# ----------------------------------------------------------------------
+# This file defines 5 workflows:
+#   1. android-debug       – fast unit‑test + unsigned debug APK
+#   2. android-release    – signed AAB + Play Store upload
+#   3. ios-debug          – unsigned .ipa for quick QA
+#   4. ios-release        – signed .ipa + TestFlight upload
+#   5. functions-deploy    – deploy Firebase Cloud Functions (optional)
+# ----------------------------------------------------------------------
 
-    # ------------ NEW: guarded test step ------------
-    - name: Run tests with coverage (skip if no test folder)
-      script: |
-        if [ -d test ]; then
-          echo "🔎 test folder found – running flutter test"
-          flutter test --coverage
-        else
-          echo "⚠️ No test folder – creating empty coverage file"
-          mkdir -p coverage
-          touch coverage/lcov.info
-        fi
-    # -------------------------------------------------
+workflows:
+  # --------------------------------------------------------------------
+  # 1️⃣ Android – Debug (customer flavor)
+  # --------------------------------------------------------------------
+  android-debug:
+    name: Android Debug (Customer)
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      java: '11'
+      vars:
+        # Example of a custom env var you might use in the app
+        API_BASE_URL: "https://staging.api.housebuddy.com"
+    scripts:
+      # 1️⃣ Install Flutter dependencies
+      - name: Install dependencies
+        script: flutter pub get
 
-    - name: Build debug APK (customer)
-      script: |
-        flutter build apk --debug --flavor customer --target lib/main.dart
+      # 2️⃣ DEBUG: Show what the repo actually contains (helps when “test folder not found”)
+      - name: Debug – show repo layout
+        script: |
+          echo "=== pwd ==="
+          pwd
+          echo "=== root listing ==="
+          ls -la
+          echo "=== test folder (if any) ==="
+          if [ -d test ]; then
+            echo ">>> test/ exists – recursive listing"
+            ls -R test
+          else
+            echo ">>> No test/ folder"
+          fi
 
-  artifacts:
-    - build/app/outputs/apk/**/*.apk
-    - coverage/**/*.info
+      # 3️⃣ Guarded test step – runs only when a test folder exists
+      - name: Run tests with coverage (skip if no test folder)
+        script: |
+          if [ -d test ]; then
+            echo "🔎 test folder detected – running flutter test"
+            flutter test --coverage
+          else
+            echo "⚠️ No test folder – creating empty coverage file so later steps don’t fail"
+            mkdir -p coverage
+            touch coverage/lcov.info
+          fi
+
+      # 4️⃣ Build a debug APK (customer flavor)
+      - name: Build debug APK (customer)
+        script: |
+          flutter build apk \
+            --debug \
+            --flavor customer \
+            --target lib/main.dart
+
+    artifacts:
+      - build/app/outputs/apk/**/*.apk
+      - coverage/**/*.info
+
+  # --------------------------------------------------------------------
+  # 2️⃣ Android – Release (provider flavor)
+  # --------------------------------------------------------------------
+  android-release:
+    name: Android Release (Provider)
+    max_build_duration: 55
+    environment:
+      flutter: stable
+      java: '11'
+      # ---------- Encrypted variables (set them in Codemagic UI) ----------
+      vars:
+        # Keystore (base64‑encoded). Generate with: base64 -i my-release-key.jks
+        ANDROID_KEYSTORE_BASE64: Encrypted(${ANDROID_KEYSTORE_BASE64})
+        ANDROID_KEYSTORE_PASSWORD: Encrypted(${ANDROID_KEYSTORE_PASSWORD})
+        ANDROID_KEY_PASSWORD: Encrypted(${ANDROID_KEY_PASSWORD})
+        # Google‑services JSON (base64‑encoded). Download from Firebase.
+        GOOGLE_SERVICES_JSON: Encrypted(${GOOGLE_SERVICES_JSON})
+        # Play Store service‑account JSON (base64‑encoded). From Play Console → API access.
+        PLAY_STORE_JSON_KEY: Encrypted(${PLAY_STORE_JSON_KEY})
+        # Optional: Firebase CI token (if you need to run firebase CLI commands)
+        FIREBASE_TOKEN: Encrypted(${FIREBASE_TOKEN})
+        API_BASE_URL: "https://prod.api.housebuddy.com"
+    scripts:
+      - name: Install dependencies
+        script: flutter pub get
+
+      - name: Decode keystore
+        script: |
+          echo $ANDROID_KEYSTORE_BASE64 | base64 --decode > $HOME/keystore.jks
+
+      - name: Decode Google services JSON
+        script: |
+          echo $GOOGLE_SERVICES_JSON | base64 --decode > android/app/google-services.json
+
+      # (same debugging block as above – optional, keep if you still get “test not found”)
+      - name: Debug – show repo layout
+        script: |
+          pwd && ls -la && [ -d test ] && ls -R test || echo "No test folder"
+
+      - name: Run tests with coverage (skip if no test folder)
+        script: |
+          if [ -d test ]; then
+            flutter test --coverage
+          else
+            mkdir -p coverage && touch coverage/lcov.info
+          fi
+
+      - name: Build signed AAB (provider)
+        script: |
+          flutter build appbundle \
+            --release \
+            --flavor provider \
+            --target lib/main.dart \
+            --build-number $CI_BUILD_NUMBER \
+            --build-name $CI_BUILD_NUMBER
+
+      - name: Deploy to Google Play (internal test track)
+        script: |
+          # Decode the Play Store JSON key
+          echo $PLAY_STORE_JSON_KEY | base64 --decode > $HOME/play_store.json
+          # Fastlane configuration – Fastlane is pre‑installed on the Codemagic image
+          mkdir -p fastlane
+          cat > fastlane/Appfile <<EOF
+          json_key_file("$HOME/play_store.json")
+          package_name("com.example.housebuddy.provider")
+          EOF
+          # Upload the AAB
+          fastlane supply \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --track internal \
+            --json_key $HOME/play_store.json \
+            --package_name com.example.housebuddy.provider \
+            --skip_upload_metadata \
+            --skip_upload_images \
+            --skip_upload_screenshots
+
+    artifacts:
+      - build/app/outputs/**/*.aab
+      - coverage/**/*.info
+
+  # --------------------------------------------------------------------
+  # 3️⃣ iOS – Debug (customer flavor)
+  # --------------------------------------------------------------------
+  ios-debug:
+    name: iOS Debug (Customer)
+    max_build_duration: 30
+    environment:
+      xcode: latest
+      cocoapods: default
+      vars:
+        API_BASE_URL: "https://staging.api.housebuddy.com"
+    scripts:
+      - name: Install pods
+        script: |
+          cd ios && pod install && cd ..
+
+      - name: Install dependencies
+        script: flutter pub get
+
+      - name: Debug – show repo layout
+        script: |
+          pwd && ls -la && [ -d test ] && ls -R test || echo "No test folder"
+
+      - name: Run tests with coverage (skip if no test folder)
+        script: |
+          if [ -d test ]; then
+            flutter test --coverage
+          else
+            mkdir -p coverage && touch coverage/lcov.info
+          fi
+
+      - name: Build unsigned IPA (customer)
+        script: |
+          flutter build ios \
+            --debug \
+            --no-codesign \
+            --flavor customer \
+            --target lib/main.dart
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - coverage/**/*.info
+
+  # --------------------------------------------------------------------
+  # 4️⃣ iOS – Release (provider flavor)
+  # --------------------------------------------------------------------
+  ios-release:
+    name: iOS Release (Provider)
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      cocoapods: default
+      vars:
+        # Apple / Fastlane credentials – set as encrypted variables in UI
+        APPLE_ID: Encrypted(${APPLE_ID})
+        FASTLANE_PASSWORD: Encrypted(${FASTLANE_PASSWORD})
+        # Fastlane App Store Connect API key (base64‑encoded .p8 file)
+        APP_STORE_CONNECT_API_KEY_ID: Encrypted(${APP_STORE_CONNECT_API_KEY_ID})
+        APP_STORE_CONNECT_ISSUER_ID: Encrypted(${APP_STORE_CONNECT_ISSUER_ID})
+        APP_STORE_CONNECT_PRIVATE_KEY: Encrypted(${APP_STORE_CONNECT_PRIVATE_KEY})
+        # Firebase iOS config (base64‑encoded GoogleService-Info.plist)
+        GOOGLE_SERVICES_PLIST: Encrypted(${GOOGLE_SERVICES_PLIST})
+        API_BASE_URL: "https://prod.api.housebuddy.com"
+    scripts:
+      # -------- Decode Firebase iOS config ----------
+      - name: Decode GoogleService-Info.plist
+        script: |
+          echo $GOOGLE_SERVICES_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
+
+      # -------- Set up Fastlane App Store Connect API key ----------
+      - name: Write Fastlane API key file
+        script: |
+          mkdir -p ~/.fastlane
+          cat <<EOF > ~/.fastlane/app_store_connect_api_key.json
+          {
+            "key_id": "$APP_STORE_CONNECT_API_KEY_ID",
+            "issuer_id": "$APP_STORE_CONNECT_ISSUER_ID",
+            "key": "$APP_STORE_CONNECT_PRIVATE_KEY"
+          }
+          EOF
+
+      - name: Install pods
+        script: |
+          cd ios && pod install && cd ..
+
+      - name: Install dependencies
+        script: flutter pub get
+
+      - name: Debug – show repo layout
+        script: |
+          pwd && ls -la && [ -d test ] && ls -R test || echo "No test folder"
+
+      - name: Run tests with coverage (skip if no test folder)
+        script: |
+          if [ -d test ]; then
+            flutter test --coverage
+          else
+            mkdir -p coverage && touch coverage/lcov.info
+          fi
+
+      # -------- Build the archive (provider flavor) ----------
+      - name: Build iOS archive (provider)
+        script: |
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --flavor provider \
+            --target lib/main.dart
+
+          # Use the scheme that matches the provider flavor (RunnerProvider)
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme RunnerProvider \
+            -configuration Release \
+            -archivePath $HOME/RunnerProvider.xcarchive \
+            archive
+
+      # -------- Export signed .ipa ----------
+      - name: Export signed IPA
+        script: |
+          cat <<EOF > ios/ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>YOUR_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.example.housebuddy.provider</key><string>HouseBuddy_Provisioning_Profile</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath $HOME/RunnerProvider.xcarchive \
+            -exportPath $HOME/ipa \
+            -exportOptionsPlist ios/ExportOptions.plist
+
+      # -------- Upload to TestFlight (Fastlane pilot) ----------
+      - name: Upload to TestFlight
+        script
