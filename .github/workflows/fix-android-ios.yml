@@ -1,69 +1,87 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# Run manually from the Actions tab → “Run workflow”
+# This workflow is started manually (workflow_dispatch) and creates
+# the missing android/ and ios/ directories by running
+# `flutter create .`. It also overwrites the Android build.gradle
+# with the flavor configuration you already prepared.
 # --------------------------------------------------------------
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # enables the "Run workflow" button in the UI
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
+      # --------------------------------------------------------------
+      # 1️⃣ Checkout the repository (full history – needed to push back)
+      # --------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0    # get full history so we can push back
+          fetch-depth: 0   # get the whole history so we can push later
 
-      - name: Install Flutter (stable)
+      # --------------------------------------------------------------
+      # 2️⃣ Install Flutter (stable channel, version 3.19.0)
+      # --------------------------------------------------------------
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.19.0'
 
+      # --------------------------------------------------------------
+      # 3️⃣ Generate the missing platform folders
+      # --------------------------------------------------------------
       - name: Run flutter create .
         run: flutter create .
 
       # --------------------------------------------------------------
-      # OPTIONAL – replace the generated build.gradle with your flavor block
+      # 4️⃣ Overwrite android/app/build.gradle with the flavor block
       # --------------------------------------------------------------
       - name: Overwrite android/app/build.gradle with flavor block
         run: |
           cat > android/app/build.gradle <<'EOF'
-   // ---- paste the whole block from the answer (including `android { … }`) ----
-   android {
-     compileSdkVersion 34
-     defaultConfig {
-       applicationId "com.example.housebuddy"
-       minSdkVersion 21
-       targetSdkVersion 34
-       versionCode flutterVersionCode.toInteger()
-       versionName flutterVersionName
-     }
-     flavorDimensions "app"
-     productFlavors {
-       customer {
-         dimension "app"
-         applicationIdSuffix ".customer"
-         resValue "string", "app_name", "HouseBuddy"
-       }
-       provider {
-         dimension "app"
-         applicationIdSuffix ".provider"
-         resValue "string", "app_name", "HouseBuddy Provider"
-       }
-     }
-     signingConfigs { release { } }
-     buildTypes { release { signingConfig signingConfigs.release } }
-   }
-   EOF
+android {
+  compileSdkVersion 34
 
-      - name: Commit and push generated files
+  defaultConfig {
+    applicationId "com.example.housebuddy"
+    minSdkVersion 21
+    targetSdkVersion 34
+    versionCode flutterVersionCode.toInteger()
+    versionName flutterVersionName
+  }
+
+  flavorDimensions "app"
+
+  productFlavors {
+    customer {
+      dimension "app"
+      applicationIdSuffix ".customer"
+      resValue "string", "app_name", "HouseBuddy"
+    }
+    provider {
+      dimension "app"
+      applicationIdSuffix ".provider"
+      resValue "string", "app_name", "HouseBuddy Provider"
+    }
+  }
+
+  signingConfigs { release { } }
+  buildTypes { release { signingConfig signingConfigs.release } }
+}
+EOF
+
+      # --------------------------------------------------------------
+      # 5️⃣ Commit the new android/ and ios/ folders and push them back
+      # --------------------------------------------------------------
+      - name: Commit and push changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git add android ios
-          git commit -m "Add proper Android & iOS folders (flutter create .) – auto‑fixed via GH Action"
+          git commit -m "Add proper Android & iOS directories (flutter create .) – auto‑fixed"
           git push
