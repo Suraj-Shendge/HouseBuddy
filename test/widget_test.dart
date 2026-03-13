@@ -1,14 +1,15 @@
 // test/widget_test.dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:housebuddy/main.dart';   // <-- points to the file that defines MyApp
+import 'package:housebuddy/main.dart';   // <-- adjust the import if your file is elsewhere
 
 void main() {
-  testWidgets('smoke test – app shows title', (WidgetTester tester) async {
-    // Use the actual widget name from your code:
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Smoke test – app launches', (WidgetTester tester) async {
+    // Use the actual root widget name from your code.
+    // Replace `HouseBuddyApp` with whatever you call it.
+    await tester.pumpWidget(const HouseBuddyApp());
 
-    // Verify that the title you display on the home screen appears.
-    // Adjust the string to match whatever you have in the UI.
+    // Verify a piece of UI that is guaranteed to exist.
+    // For the minimal template this is usually the app title.
     expect(find.text('HouseBuddy'), findsOneWidget);
   });
 }
