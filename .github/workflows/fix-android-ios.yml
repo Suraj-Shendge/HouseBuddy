@@ -1,25 +1,25 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# This workflow is started manually (workflow_dispatch) and creates
-# the missing android/ and ios/ directories by running
-# `flutter create .`. It also overwrites the Android build.gradle
-# with the flavor configuration you already prepared.
+# This workflow is started manually from the GitHub UI (Actions →
+# Run workflow). It creates the missing android/ and ios/ folders
+# by running `flutter create .` and then injects the flavor block
+# you already defined.
 # --------------------------------------------------------------
 on:
-  workflow_dispatch:   # enables the "Run workflow" button in the UI
+  workflow_dispatch:   # Enables the “Run workflow” button
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       # --------------------------------------------------------------
-      # 1️⃣ Checkout the repository (full history – needed to push back)
+      # 1️⃣ Checkout the repository (full history – needed for push)
       # --------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # get the whole history so we can push later
+          fetch-depth: 0   # get the full history so we can push later
 
       # --------------------------------------------------------------
       # 2️⃣ Install Flutter (stable channel, version 3.19.0)
@@ -31,7 +31,7 @@ jobs:
           flutter-version: '3.19.0'
 
       # --------------------------------------------------------------
-      # 3️⃣ Generate the missing platform folders
+      # 3️⃣ Generate missing platform directories
       # --------------------------------------------------------------
       - name: Run flutter create .
         run: flutter create .
@@ -41,40 +41,38 @@ jobs:
       # --------------------------------------------------------------
       - name: Overwrite android/app/build.gradle with flavor block
         run: |
-          cat > android/app/build.gradle <<'EOF'
-android {
-  compileSdkVersion 34
-
-  defaultConfig {
-    applicationId "com.example.housebuddy"
-    minSdkVersion 21
-    targetSdkVersion 34
-    versionCode flutterVersionCode.toInteger()
-    versionName flutterVersionName
-  }
-
-  flavorDimensions "app"
-
-  productFlavors {
-    customer {
-      dimension "app"
-      applicationIdSuffix ".customer"
-      resValue "string", "app_name", "HouseBuddy"
-    }
-    provider {
-      dimension "app"
-      applicationIdSuffix ".provider"
-      resValue "string", "app_name", "HouseBuddy Provider"
-    }
-  }
-
-  signingConfigs { release { } }
-  buildTypes { release { signingConfig signingConfigs.release } }
-}
-EOF
+          printf "%s\n" "android {" \
+          "  compileSdkVersion 34" \
+          "" \
+          "  defaultConfig {" \
+          "    applicationId \"com.example.housebuddy\"" \
+          "    minSdkVersion 21" \
+          "    targetSdkVersion 34" \
+          "    versionCode flutterVersionCode.toInteger()" \
+          "    versionName flutterVersionName" \
+          "  }" \
+          "" \
+          "  flavorDimensions \"app\"" \
+          "" \
+          "  productFlavors {" \
+          "    customer {" \
+          "      dimension \"app\"" \
+          "      applicationIdSuffix \".customer\"" \
+          "      resValue \"string\", \"app_name\", \"HouseBuddy\"" \
+          "    }" \
+          "    provider {" \
+          "      dimension \"app\"" \
+          "      applicationIdSuffix \".provider\"" \
+          "      resValue \"string\", \"app_name\", \"HouseBuddy Provider\"" \
+          "    }" \
+          "  }" \
+          "" \
+          "  signingConfigs { release { } }" \
+          "  buildTypes { release { signingConfig signingConfigs.release } }" \
+          "}" > android/app/build.gradle
 
       # --------------------------------------------------------------
-      # 5️⃣ Commit the new android/ and ios/ folders and push them back
+      # 5️⃣ Commit the new android/ and ios/ folders and push back
       # --------------------------------------------------------------
       - name: Commit and push changes
         env:
