@@ -1,2 +1,0 @@
-# HouseBuddy
-Project scaffold.
