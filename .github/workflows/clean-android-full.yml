@@ -1,0 +1,164 @@
+name: Clean Android (full Groovy scaffold + v2 embedding)
+
+# --------------------------------------------------------------
+# This workflow can be started manually from the Actions UI.
+# It creates a fresh Android project that uses the classic Groovy
+# Gradle files, adds your flavor block, removes any v1 embedding,
+# and pushes the result back to the same branch.
+# --------------------------------------------------------------
+on:
+  workflow_dispatch:   # manual trigger
+
+permissions:
+  contents: write      # allow the bot to push a commit
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      # --------------------------------------------------------------
+      # 1️⃣ Checkout repository (full history – needed for push)
+      # --------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # we need the full history for a push later
+
+      # --------------------------------------------------------------
+      # 2️⃣ Install Flutter (latest stable) – must be **before** any flutter command
+      # --------------------------------------------------------------
+      - name: Install Flutter (latest stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable   # pulls the newest stable Flutter SDK
+
+      # --------------------------------------------------------------
+      # 3️⃣ Generate a **fresh** Android / iOS scaffold.
+      #    - `--android-language java` forces Groovy Gradle files.
+      #    - `--project-name housebuddy` gives a valid lower‑case package name.
+      # --------------------------------------------------------------
+      - name: Run flutter create .
+        run: |
+          flutter create . \
+            --project-name housebuddy \
+            --android-language java \
+            --org com.example \
+            --platforms=android,ios
+
+      # --------------------------------------------------------------
+      # 4️⃣ Remove any Kotlin‑DSL Gradle files that might have been left over
+      # --------------------------------------------------------------
+      - name: Delete *.gradle.kts and settings.gradle.kts
+        run: |
+          find android -type f -name "*.gradle.kts" -delete
+          rm -f android/settings.gradle.kts
+
+      # --------------------------------------------------------------
+      # 5️⃣ Overwrite the **module‑level** build.gradle to inject your flavor block
+      # --------------------------------------------------------------
+      - name: Write android/app/build.gradle (Groovy) with flavor block
+        run: |
+          cat > android/app/build.gradle <<'EOF'
+          plugins {
+            id 'com.android.application'
+            id 'kotlin-android'
+          }
+
+          android {
+            compileSdkVersion 34
+
+            defaultConfig {
+              applicationId "com.example.housebuddy"
+              minSdkVersion 21
+              targetSdkVersion 34
+              versionCode flutterVersionCode.toInteger()
+              versionName flutterVersionName
+            }
+
+            flavorDimensions "app"
+
+            productFlavors {
+              customer {
+                dimension "app"
+                applicationIdSuffix ".customer"
+                resValue "string", "app_name", "HouseBuddy"
+              }
+              provider {
+                dimension "app"
+                applicationIdSuffix ".provider"
+                resValue "string", "app_name", "HouseBuddy Provider"
+              }
+            }
+
+            signingConfigs { release { } }
+
+            buildTypes {
+              release {
+                signingConfig signingConfigs.release
+                minifyEnabled false
+                shrinkResources false
+              }
+            }
+
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_11
+              targetCompatibility JavaVersion.VERSION_11
+            }
+            kotlinOptions {
+              jvmTarget = "11"
+            }
+          }
+
+          flutter {
+            source '../..'
+          }
+
+          dependencies {
+            // No extra Android dependencies needed.
+          }
+          EOF
+
+      # --------------------------------------------------------------
+      # 6️⃣ Delete any old MainApplication that uses the v1 embedding
+      # --------------------------------------------------------------
+      - name: Delete old MainApplication (v1) if it exists
+        run: |
+          find android/app/src/main -type f \
+            \( -name "MainApplication.kt" -o -name "MainApplication.java" \) -delete
+
+      # --------------------------------------------------------------
+      # 7️⃣ Ensure a **v2** MainActivity exists (Kotlin version – can be Java if you prefer)
+      # --------------------------------------------------------------
+      - name: Write proper MainActivity.kt (v2 embedding)
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/example/housebuddy
+          cat > android/app/src/main/kotlin/com/example/housebuddy/MainActivity.kt <<'EOF'
+          package com.example.housebuddy
+
+          import io.flutter.embedding.android.FlutterFragmentActivity
+
+          /**
+           * Updated to use the new Android v2 embedding.
+           * Extending FlutterFragmentActivity works for most plugins.
+           */
+          class MainActivity : FlutterFragmentActivity()
+          EOF
+
+      # --------------------------------------------------------------
+      # 8️⃣ Commit and push the cleaned Android project back to the same branch
+      # --------------------------------------------------------------
+      - name: Commit and push cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          git add android/
+          if git diff --cached --quiet; then
+            echo "🟢 No changes to commit – Android already in the correct shape."
+            exit 0
+          fi
+
+          git commit -m "Clean Android: Groovy Gradle scaffold, v2 MainActivity, remove v1 embedding."
+          git push
