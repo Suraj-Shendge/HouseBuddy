@@ -1,6 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
- match /databases/{database}/documents {
-  match /{document=**} { allow read, write: if false; }
- }
+  match /databases/{database}/documents {
+
+    // Users collection
+    match /users/{uid} {
+      allow read: if true; // public read for provider listing
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Providers collection
+    match /providers/{pid} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == pid;
+      // Admin can write any provider (admin custom claim)
+      allow write: if request.auth.token.admin == true;
+    }
+
+    // Services – read only for all
+    match /services/{sid} {
+      allow read: if true;
+      allow write: if request.auth.token.admin == true;
+    }
+
+    // Bookings
+    match /bookings/{bid} {
+      allow read: if request.auth != null && (
+          resource.data.userId == request.auth.uid ||
+          resource.data.providerId == request.auth.uid ||
+          request.auth.token.admin == true
+        );
+
+      // Create – only authenticated customers
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+
+      // Update – only involved provider or admin, limited fields
+      allow update: if request.auth != null && (
+          request.auth.uid == resource.data.providerId ||
+          request.auth.token.admin == true
+        ) && request.resource.data.keys().hasOnly([
+          'bookingStatus',
+          'paymentMethod',
+          'paymentStatus',
+          'updatedAt'
+        ]);
+
+      // Delete – admin only
+      allow delete: if request.auth.token.admin == true;
+    }
+
+    // Transactions – server-side only
+    match /transactions/{tid} {
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      allow write: if false; // only Cloud Functions
+    }
+
+    // Commission pending collection – internal
+    match /commissionPending/{docId} {
+      allow read, write: if false;
+    }
+  }
 }
