@@ -4,10 +4,10 @@ import 'package:housebuddy/main.dart';   // imports HouseBuddyApp
 
 void main() {
   testWidgets('smoke test – app launches', (WidgetTester tester) async {
-    // Pump the wrapper widget.
+    // Pump the wrapper defined in lib/main.dart.
     await tester.pumpWidget(const HouseBuddyApp());
 
-    // The stub router shows a Scaffold with this exact text.
+    // The minimal router shows a Scaffold with this exact text.
     expect(find.text('HouseBuddy Home'), findsOneWidget);
   });
 }
