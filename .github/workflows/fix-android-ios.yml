@@ -3,11 +3,11 @@ name: Fix missing Android/iOS folders
 # --------------------------------------------------------------
 # This workflow is started manually (workflow_dispatch) and will:
 #   1️⃣ Checkout the repo (full history – needed for push)
-#   2️⃣ Install Flutter (stable 3.19)
-#   3️⃣ Run `flutter create .` – generates missing android/ & ios/
-#      (using a lower‑case project name to avoid the name‑validation error)
-#   4️⃣ Overwrite android/app/build.gradle with your flavor block
-#   5️⃣ Commit only if there are changes and push back to the repo
+#   2️⃣ Install the **latest stable** Flutter (which includes Dart 3.4+)
+#   3️⃣ Run `flutter create . --project-name housebuddy`
+#      → generates the missing android/ and ios/ directories.
+#   4️⃣ Overwrite android/app/build.gradle with the flavor block you need.
+#   5️⃣ Commit ONLY IF there are changes and push back to the repo.
 # --------------------------------------------------------------
 on:
   workflow_dispatch:   # enables the “Run workflow” button
@@ -22,26 +22,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # fetch full history so we can push later
+          fetch-depth: 0   # needed so `git push` works later
 
       # --------------------------------------------------------------
-      # 2️⃣ Install Flutter (stable channel, version 3.19.0)
+      # 2️⃣ Install **latest stable** Flutter (no explicit version pin)
       # --------------------------------------------------------------
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
-          flutter-version: '3.19.0'
+          channel: stable   # pulls the newest stable Flutter (currently 3.22.x)
 
       # --------------------------------------------------------------
-      # 3️⃣ Generate missing platform directories (force a valid name)
+      # 3️⃣ Generate missing platform directories (force a lower‑case name)
       # --------------------------------------------------------------
       - name: Run flutter create .
-        # `HouseBuddy` (capital letters) is illegal → force lower‑case name
+        # The repo folder name “HouseBuddy” is illegal for a Dart package,
+        # so we force a valid lower‑case project name.
         run: flutter create . --project-name housebuddy
 
       # --------------------------------------------------------------
-      # 4️⃣ Overwrite android/app/build.gradle with the flavor block
+      # 4️⃣ Overwrite android/app/build.gradle with your flavor block
       # --------------------------------------------------------------
       - name: Overwrite android/app/build.gradle with flavor block
         run: |
@@ -82,17 +82,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Configure the bot identity for the commit
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-          # Stage the newly‑generated directories/files
+          # Stage everything that could have been created/modified
           git add android ios
 
-          # If nothing staged → exit successfully
+          # If nothing is staged, exit cleanly
           if git diff --cached --quiet; then
-            echo "🟢 No changes to commit – everything already up‑to‑date."
+            echo "🟢 No changes to commit – repository already contains the Android/iOS folders."
           else
-            echo "🔧 Changes detected – committing & pushing..."
-            git commit -m "Add proper Android & iOS dirs (flutter create .) – auto‑fixed"
-            git push
-          fi
+            echo "🔧 Changes
