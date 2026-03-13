@@ -1,13 +1,7 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# This workflow is started manually (workflow_dispatch) and will:
-#   1️⃣ Checkout the repo (full history – needed for push)
-#   2️⃣ Install the **latest stable** Flutter (which includes Dart 3.4+)
-#   3️⃣ Run `flutter create . --project-name housebuddy`
-#      → generates the missing android/ and ios/ directories.
-#   4️⃣ Overwrite android/app/build.gradle with the flavor block you need.
-#   5️⃣ Commit ONLY IF there are changes and push back to the repo.
+# Triggered manually from the GitHub UI
 # --------------------------------------------------------------
 on:
   workflow_dispatch:   # enables the “Run workflow” button
@@ -17,27 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # --------------------------------------------------------------
-      # 1️⃣ Checkout repository (full history – required for push)
+      # 1️⃣ Checkout the repository (full history – needed for push)
       # --------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # needed so `git push` works later
+          fetch-depth: 0   # full history so we can push later
 
       # --------------------------------------------------------------
-      # 2️⃣ Install **latest stable** Flutter (no explicit version pin)
+      # 2️⃣ Install the **latest stable** Flutter (includes Dart 3.4+)
       # --------------------------------------------------------------
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable   # pulls the newest stable Flutter (currently 3.22.x)
+          channel: stable   # pulls the newest stable Flutter (3.xx)
 
       # --------------------------------------------------------------
       # 3️⃣ Generate missing platform directories (force a lower‑case name)
       # --------------------------------------------------------------
       - name: Run flutter create .
-        # The repo folder name “HouseBuddy” is illegal for a Dart package,
-        # so we force a valid lower‑case project name.
         run: flutter create . --project-name housebuddy
 
       # --------------------------------------------------------------
@@ -82,7 +74,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configure the bot identity for the commit
+          # Configure a bot identity for the commit
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
@@ -91,6 +83,9 @@ jobs:
 
           # If nothing is staged, exit cleanly
           if git diff --cached --quiet; then
-            echo "🟢 No changes to commit – repository already contains the Android/iOS folders."
+            echo 'No changes to commit – repository already contains the Android/iOS folders.'
           else
-            echo "🔧 Changes
+            echo 'Changes detected – committing and pushing...'
+            git commit -m 'Add Android & iOS directories (flutter create .) - auto‑fixed'
+            git push
+          fi
