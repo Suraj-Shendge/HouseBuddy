@@ -70,3 +70,65 @@ jobs:
           git push origin "$BRANCH"
 
           echo "✅ Changes pushed to $BRANCH – open a Pull Request to merge."
+
+          name: Remove Android v1 embedding references
+
+on:
+  workflow_dispatch:   # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --------------------------------------------------------------
+      # Find and delete any file containing the old v1 import
+      # --------------------------------------------------------------
+      - name: Delete files with v1 embedding imports
+        run: |
+          # Search for the v1 import strings and delete the files
+          grep -rl "io.flutter.app.FlutterActivity" android/app/src/main || true | xargs -r rm -f
+          grep -rl "io.flutter.app.FlutterApplication" android/app/src/main || true | xargs -r rm -f
+
+      # --------------------------------------------------------------
+      # Ensure MainActivity exists with the v2 embedding (Kotlin)
+      # --------------------------------------------------------------
+      - name: Write correct MainActivity.kt (v2)
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/example/housebuddy
+          cat > android/app/src/main/kotlin/com/example/housebuddy/MainActivity.kt <<'EOF'
+          package com.example.housebuddy
+
+          import io.flutter.embedding.android.FlutterFragmentActivity
+
+          class MainActivity : FlutterFragmentActivity()
+          EOF
+
+      # --------------------------------------------------------------
+      # Commit and push the cleanup
+      # --------------------------------------------------------------
+      - name: Commit and push cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          git add android/app/src/main/kotlin/com/example/housebuddy/MainActivity.kt
+          git rm -f android/app/src/main/kotlin/com/example/housebuddy/MainApplication.kt || true
+
+          if git diff --cached --quiet; then
+            echo "🟢 No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Remove any Android v1 embedding references."
+          git push
+
