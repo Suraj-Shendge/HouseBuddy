@@ -1,4 +1,3 @@
-// App theme configuration
 // lib/core/constants/theme.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,7 +13,7 @@ class AppColors {
 }
 
 class AppTheme {
-  // A simple light theme that uses the Inter font.
+  // A very small, fully‑functional light theme.
   static ThemeData get light => ThemeData(
         brightness: Brightness.light,
         primaryColor: AppColors.primary,
@@ -29,11 +28,14 @@ class AppTheme {
           foregroundColor: AppColors.onPrimary,
           elevation: 0,
         ),
-        cardTheme: const CardTheme(
+        // NOTE: In Flutter 3.19+ ThemeData.cardTheme expects a CardThemeData,
+        // not the older CardTheme widget.
+        cardTheme: const CardThemeData(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
           elevation: 4,
+          margin: EdgeInsets.all(12),
         ),
       );
 }
