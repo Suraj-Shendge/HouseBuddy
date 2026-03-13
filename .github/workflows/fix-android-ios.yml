@@ -1,22 +1,23 @@
 name: Fix missing Android/iOS folders
 
 # --------------------------------------------------------------
-# This workflow is triggered manually (workflow_dispatch) and will:
-#   1️⃣ Checkout the repo (full history – required for push)
+# This workflow is started manually (workflow_dispatch) and will:
+#   1️⃣ Checkout the repo (full history – needed for push)
 #   2️⃣ Install Flutter (stable 3.19)
-#   3️⃣ Run `flutter create .` → generates missing android/ & ios/
+#   3️⃣ Run `flutter create .` – generates missing android/ & ios/
+#      (using a lower‑case project name to avoid the name‑validation error)
 #   4️⃣ Overwrite android/app/build.gradle with your flavor block
 #   5️⃣ Commit only if there are changes and push back to the repo
 # --------------------------------------------------------------
 on:
-  workflow_dispatch:   # enables the “Run workflow” button in the UI
+  workflow_dispatch:   # enables the “Run workflow” button
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       # --------------------------------------------------------------
-      # 1️⃣ Checkout the repository (full history – needed for push)
+      # 1️⃣ Checkout repository (full history – required for push)
       # --------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,10 +34,11 @@ jobs:
           flutter-version: '3.19.0'
 
       # --------------------------------------------------------------
-      # 3️⃣ Generate missing platform directories
+      # 3️⃣ Generate missing platform directories (force a valid name)
       # --------------------------------------------------------------
       - name: Run flutter create .
-        run: flutter create .
+        # `HouseBuddy` (capital letters) is illegal → force lower‑case name
+        run: flutter create . --project-name housebuddy
 
       # --------------------------------------------------------------
       # 4️⃣ Overwrite android/app/build.gradle with the flavor block
@@ -80,18 +82,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Configure the bot identity
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-          # Stage the generated folders/files
+          # Stage the newly‑generated directories/files
           git add android ios
 
-          # Check if anything useful was staged
+          # If nothing staged → exit successfully
           if git diff --cached --quiet; then
-            echo "🟢 No changes to commit – everything is already up‑to‑date."
+            echo "🟢 No changes to commit – everything already up‑to‑date."
           else
-            echo "🔧 Changes detected – committing and pushing..."
-            git commit -m "Add proper Android & iOS directories (flutter create .) – auto‑fixed"
+            echo "🔧 Changes detected – committing & pushing..."
+            git commit -m "Add proper Android & iOS dirs (flutter create .) – auto‑fixed"
             git push
           fi
