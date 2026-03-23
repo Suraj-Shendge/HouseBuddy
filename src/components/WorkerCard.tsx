@@ -1,152 +1,164 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Linking } from 'react-native';
-import { COLORS, BORDER_RADIUS, SHADOWS, SPACING, FONT_SIZES } from '../constants/theme';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SHADOWS, RADIUS, SPACING, ILLUSTRATIONS } from '../constants/theme';
 import { Worker } from '../types';
-import { getTrustScoreColor, formatDistance } from '../utils/helpers';
-import { StarRating } from './StarRating';
-import { TrustBadge } from './TrustBadge';
 
 interface WorkerCardProps {
   worker: Worker;
-  onPress?: () => void;
-  onCall?: () => void;
-  compact?: boolean;
+  onPress: () => void;
+  variant?: 'default' | 'compact' | 'featured';
 }
 
-export const WorkerCard: React.FC<WorkerCardProps> = ({
-  worker,
-  onPress,
-  onCall,
-  compact = false,
-}) => {
-  const handleCall = () => {
-    Linking.openURL(`tel:${worker.phone}`);
+export const WorkerCard: React.FC<WorkerCardProps> = ({ worker, onPress, variant = 'default' }) => {
+  const getCategoryImage = (category: string): string => {
+    const categoryKey = category.toLowerCase().replace(/\s+/g, '') as keyof typeof ILLUSTRATIONS.categories;
+    return ILLUSTRATIONS.categories[categoryKey] || ILLUSTRATIONS.categories.plumber;
   };
 
-  const trustColor = getTrustScoreColor(worker.trust_score);
+  const getTrustLabel = (score: number): string => {
+    if (score >= 90) return 'Excellent';
+    if (score >= 75) return 'Very Good';
+    if (score >= 60) return 'Good';
+    return 'Fair';
+  };
 
-  if (compact) {
+  const getTrustColor = (score: number): string => {
+    if (score >= 90) return COLORS.trustExcellent;
+    if (score >= 75) return COLORS.trustGood;
+    if (score >= 60) return COLORS.warning;
+    return COLORS.error;
+  };
+
+  if (variant === 'compact') {
     return (
-      <TouchableOpacity style={compactStyles.card} onPress={onPress} activeOpacity={0.8}>
-        <View style={[compactStyles.avatar, { backgroundColor: worker.category.color + '30' }]}>
-          <Text style={compactStyles.avatarText}>
-            {worker.name.split(' ').map(n => n[0]).join('')}
-          </Text>
+      <TouchableOpacity style={styles.compactCard} onPress={onPress} activeOpacity={0.8}>
+        <Image source={{ uri: getCategoryImage(worker.category) }} style={styles.compactImage} />
+        <View style={styles.compactOverlay}>
+          <Text style={styles.compactName}>{worker.name}</Text>
+          <Text style={styles.compactCategory}>{worker.category}</Text>
         </View>
-        <Text style={compactStyles.name} numberOfLines={1}>{worker.name}</Text>
-        <Text style={compactStyles.category}>{worker.category.name}</Text>
-        <View style={compactStyles.ratingRow}>
-          <StarRating rating={worker.avg_rating} size={12} />
-          <Text style={compactStyles.rating}>{worker.avg_rating.toFixed(1)}</Text>
+        <View style={[styles.trustBadge, { backgroundColor: getTrustColor(worker.trustScore) }]}>
+          <Text style={styles.trustText}>{worker.trustScore}%</Text>
         </View>
-        <Text style={compactStyles.distance}>
-          {formatDistance(worker.distance)} away
-        </Text>
       </TouchableOpacity>
     );
   }
 
+  if (variant === 'featured') {
+    return (
+      <TouchableOpacity style={styles.featuredCard} onPress={onPress} activeOpacity={0.9}>
+        <Image source={{ uri: worker.avatar || getCategoryImage(worker.category) }} style={styles.featuredImage} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.featuredGradient}
+        >
+          <View style={styles.featuredContent}>
+            <Text style={styles.featuredName}>{worker.name}</Text>
+            <Text style={styles.featuredCategory}>{worker.category}</Text>
+            <View style={styles.featuredMeta}>
+              <View style={styles.ratingContainer}>
+                <Text style={styles.featuredRating}>★ {worker.rating.toFixed(1)}</Text>
+                <Text style={styles.featuredReviews}>({worker.reviewCount})</Text>
+              </View>
+              <View style={[styles.trustPill, { backgroundColor: getTrustColor(worker.trustScore) }]}>
+                <Text style={styles.trustPillText}>{getTrustLabel(worker.trustScore)}</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+        {worker.isVerified && (
+          <View style={styles.verifiedBadge}>
+            <Text style={styles.verifiedText}>✓</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
+  // Default card
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: worker.category.color + '30' }]}>
-          {worker.images.length > 0 ? (
-            <Image source={{ uri: worker.images[0] }} style={styles.avatarImage} />
-          ) : (
-            <Text style={styles.avatarText}>
-              {worker.name.split(' ').map(n => n[0]).join('')}
-            </Text>
-          )}
-        </View>
-        <View style={styles.headerInfo}>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.cardHeader}>
+        <Image source={{ uri: worker.avatar || getCategoryImage(worker.category) }} style={styles.avatar} />
+        <View style={styles.headerContent}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{worker.name}</Text>
-            {worker.is_available && (
-              <View style={styles.availableBadge}>
-                <Text style={styles.availableText}>Available</Text>
+            {worker.isVerified && (
+              <View style={styles.verifiedTag}>
+                <Text style={styles.verifiedTagText}>✓ Verified</Text>
               </View>
             )}
           </View>
-          <Text style={styles.category}>{worker.category.name}</Text>
-          <View style={styles.ratingRow}>
-            <StarRating rating={worker.avg_rating} size={14} />
-            <Text style={styles.rating}>{worker.avg_rating.toFixed(1)}</Text>
-            <Text style={styles.reviews}>({worker.reviews_count})</Text>
+          <Text style={styles.category}>{worker.category}</Text>
+          <Text style={styles.location}>{worker.location}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>★ {worker.rating.toFixed(1)}</Text>
+            <Text style={styles.statLabel}>{worker.reviewCount} reviews</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.stat}>
+            <Text style={[styles.statValue, { color: getTrustColor(worker.trustScore) }]}>
+              {worker.trustScore}%
+            </Text>
+            <Text style={styles.statLabel}>{getTrustLabel(worker.trustScore)}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{worker.jobsCompleted}</Text>
+            <Text style={styles.statLabel}>Jobs done</Text>
           </View>
         </View>
-        <TrustBadge score={worker.trust_score} size="medium" />
+
+        {worker.badges && worker.badges.length > 0 && (
+          <View style={styles.badges}>
+            {worker.badges.slice(0, 3).map((badge, index) => (
+              <View key={index} style={styles.badge}>
+                <Text style={styles.badgeText}>{badge}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
-      <Text style={styles.description} numberOfLines={2}>
-        {worker.description}
-      </Text>
-
-      <View style={styles.footer}>
-        <View style={styles.locationRow}>
-          <Text style={styles.locationIcon}>📍</Text>
-          <Text style={styles.location}>{worker.location}</Text>
-          {worker.distance && (
-            <Text style={styles.distance}> • {formatDistance(worker.distance)}</Text>
-          )}
+      <View style={styles.cardFooter}>
+        <View>
+          <Text style={styles.priceLabel}>Starting from</Text>
+          <Text style={styles.price}>${worker.hourlyRate}/hr</Text>
         </View>
-        <View style={styles.actions}>
-          {worker.price_range && (
-            <View style={styles.priceBadge}>
-              <Text style={styles.priceText}>{worker.price_range}</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.callButton} onPress={handleCall}>
-            <Text style={styles.callIcon}>📞</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.bookButton} onPress={onPress}>
+          <Text style={styles.bookButtonText}>Book Now</Text>
+        </TouchableOpacity>
       </View>
-
-      {worker.images.length > 0 && (
-        <View style={styles.imageRow}>
-          {worker.images.slice(0, 3).map((img, index) => (
-            <Image
-              key={index}
-              source={{ uri: img }}
-              style={styles.workImage}
-            />
-          ))}
-        </View>
-      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
+  // Default card
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.lg,
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-    ...SHADOWS.medium,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: RADIUS.lg,
+    marginHorizontal: SPACING.md,
+    marginVertical: SPACING.sm,
+    ...SHADOWS.lg,
     overflow: 'hidden',
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  cardHeader: {
+    flexDirection: 'row',
+    padding: SPACING.md,
   },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.primary,
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.md,
   },
-  headerInfo: {
+  headerContent: {
     flex: 1,
     marginLeft: SPACING.md,
   },
@@ -155,161 +167,231 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: 18,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: COLORS.text,
+    letterSpacing: -0.3,
   },
-  availableBadge: {
+  verifiedTag: {
     backgroundColor: COLORS.success + '20',
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.full,
-    marginLeft: SPACING.sm,
+    borderRadius: RADIUS.full,
+    marginLeft: 8,
   },
-  availableText: {
-    fontSize: FONT_SIZES.xs,
+  verifiedTagText: {
+    fontSize: 11,
     color: COLORS.success,
     fontWeight: '600',
   },
   category: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: SPACING.xs,
-  },
-  rating: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginLeft: SPACING.xs,
-  },
-  reviews: {
-    fontSize: FONT_SIZES.xs,
+  location: {
+    fontSize: 13,
     color: COLORS.textTertiary,
-    marginLeft: 2,
+    marginTop: 2,
   },
-  description: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
+  cardBody: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.iosBg,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+  },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    marginTop: 2,
+  },
+  divider: {
+    width: 1,
+    backgroundColor: COLORS.iosSeparator,
+  },
+  badges: {
+    flexDirection: 'row',
     marginTop: SPACING.md,
+    flexWrap: 'wrap',
   },
-  footer: {
+  badge: {
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  badgeText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.md,
-    paddingTop: SPACING.md,
+    padding: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.borderLight,
+    borderTopColor: COLORS.iosBg,
   },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationIcon: {
+  priceLabel: {
     fontSize: 12,
-    marginRight: SPACING.xs,
-  },
-  location: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-  },
-  distance: {
-    fontSize: FONT_SIZES.sm,
     color: COLORS.textTertiary,
   },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  price: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
   },
-  priceBadge: {
-    backgroundColor: COLORS.success + '15',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
-    marginRight: SPACING.sm,
-  },
-  priceText: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.success,
-    fontWeight: '600',
-  },
-  callButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BORDER_RADIUS.md,
+  bookButton: {
     backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: RADIUS.full,
   },
-  callIcon: {
-    fontSize: 18,
-  },
-  imageRow: {
-    flexDirection: 'row',
-    marginTop: SPACING.md,
-  },
-  workImage: {
-    width: 80,
-    height: 60,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.sm,
-  },
-});
-
-const compactStyles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.md,
-    marginRight: SPACING.md,
-    width: 140,
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  avatarText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  name: {
-    fontSize: FONT_SIZES.sm,
+  bookButtonText: {
+    color: COLORS.textInverse,
     fontWeight: '600',
-    color: COLORS.textPrimary,
-    textAlign: 'center',
+    fontSize: 14,
   },
-  category: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textSecondary,
+
+  // Compact card
+  compactCard: {
+    width: 160,
+    height: 200,
+    borderRadius: RADIUS.lg,
+    marginRight: SPACING.md,
+    overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  compactImage: {
+    width: '100%',
+    height: '100%',
+  },
+  compactOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  compactName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textInverse,
+  },
+  compactCategory: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  trustBadge: {
+    position: 'absolute',
+    top: SPACING.sm,
+    right: SPACING.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  trustText: {
+    color: COLORS.textInverse,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Featured card
+  featuredCard: {
+    width: 280,
+    height: 180,
+    borderRadius: RADIUS.xl,
+    marginRight: SPACING.md,
+    overflow: 'hidden',
+    ...SHADOWS.xl,
+  },
+  featuredImage: {
+    width: '100%',
+    height: '100%',
+  },
+  featuredGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '70%',
+    justifyContent: 'flex-end',
+  },
+  featuredContent: {
+    padding: SPACING.md,
+  },
+  featuredName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.textInverse,
+    letterSpacing: -0.3,
+  },
+  featuredCategory: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
     marginTop: 2,
   },
-  ratingRow: {
+  featuredMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.xs,
+    marginTop: SPACING.sm,
   },
-  rating: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  featuredRating: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFD700',
+  },
+  featuredReviews: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
     marginLeft: 4,
   },
-  distance: {
-    fontSize: FONT_SIZES.xs,
-    color: COLORS.textTertiary,
-    marginTop: 4,
+  trustPill: {
+    marginLeft: SPACING.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  trustPillText: {
+    color: COLORS.textInverse,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: SPACING.md,
+    left: SPACING.md,
+    backgroundColor: COLORS.success,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.sm,
+  },
+  verifiedText: {
+    color: COLORS.textInverse,
+    fontWeight: '700',
   },
 });

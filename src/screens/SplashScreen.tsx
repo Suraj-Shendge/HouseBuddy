@@ -1,25 +1,39 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { COLORS, FONT_SIZES } from '../constants/theme';
+import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, SHADOWS, RADIUS } from '../constants/theme';
+
+const { width, height } = Dimensions.get('window');
 
 interface SplashScreenProps {
-  onFinish: (showOnboarding: boolean) => void;
+  onFinish: () => void;
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.5)).current;
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
+  const circleScale = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Circle animation
+    Animated.sequence([
+      Animated.timing(circleScale, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Logo animation
     Animated.parallel([
-      Animated.timing(fadeAnim, {
+      Animated.timing(logoOpacity, {
         toValue: 1,
         duration: 800,
         useNativeDriver: true,
-        easing: Easing.ease,
       }),
-      Animated.spring(scaleAnim, {
+      Animated.spring(logoScale, {
         toValue: 1,
         tension: 50,
         friction: 7,
@@ -27,79 +41,181 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       }),
     ]).start();
 
-    const timer = setTimeout(() => {
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start(() => {
-        setTimeout(() => onFinish(false), 500);
-      });
-    }, 2000);
+    // Tagline
+    Animated.timing(taglineOpacity, {
+      toValue: 1,
+      duration: 600,
+      delay: 400,
+      useNativeDriver: true,
+    }).start();
 
-    return () => clearTimeout(timer);
-  }, [fadeAnim, scaleAnim, logoOpacity, onFinish]);
+    // Progress bar
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 2000,
+      useNativeDriver: false,
+    }).start(() => {
+      setTimeout(onFinish, 300);
+    });
+  }, []);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
-    <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.logoContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoIcon}>🏠</Text>
+    <LinearGradient
+      colors={['#1A1A2E', '#16213E', '#0F3460']}
+      style={styles.container}
+    >
+      <View style={styles.content}>
+        {/* Animated Circle */}
+        <Animated.View
+          style={[
+            styles.circleContainer,
+            {
+              transform: [{ scale: circleScale }],
+            },
+          ]}
+        >
+          <View style={styles.circleOuter}>
+            <View style={styles.circleMiddle}>
+              <View style={styles.circleInner}>
+                <Text style={styles.logoIcon}>🏠</Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Logo */}
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            {
+              opacity: logoOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        >
+          <Text style={styles.logo}>HouseBuddy</Text>
+        </Animated.View>
+
+        {/* Tagline */}
+        <Animated.View style={[styles.taglineContainer, { opacity: taglineOpacity }]}>
+          <Text style={styles.tagline}>Trusted Home Services</Text>
+          <View style={styles.dots}>
+            <View style={[styles.dot, styles.dotActive]} />
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+          </View>
+        </Animated.View>
+
+        {/* Progress Bar */}
+        <View style={styles.progressContainer}>
+          <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
         </View>
-        <Animated.Text style={[styles.logoText, { opacity: logoOpacity }]}>
-          HouseBuddy
-        </Animated.Text>
-        <Animated.Text style={[styles.tagline, { opacity: logoOpacity }]}>
-          Your Trusted Home Services
-        </Animated.Text>
-      </Animated.View>
-    </View>
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>© 2024 HouseBuddy</Text>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoContainer: {
+  content: {
     alignItems: 'center',
   },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.primary,
+  circleContainer: {
+    marginBottom: 30,
+  },
+  circleOuter: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+  },
+  circleMiddle: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.xl,
   },
   logoIcon: {
-    fontSize: 56,
+    fontSize: 40,
   },
-  logoText: {
-    fontSize: FONT_SIZES.title,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginBottom: 8,
+  logoContainer: {
+    marginBottom: 12,
+  },
+  logo: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: COLORS.textInverse,
+    letterSpacing: -0.5,
+  },
+  taglineContainer: {
+    alignItems: 'center',
   },
   tagline: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 20,
+  },
+  dots: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 4,
+  },
+  dotActive: {
+    backgroundColor: COLORS.textInverse,
+  },
+  progressContainer: {
+    position: 'absolute',
+    bottom: -100,
+    width: 200,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: COLORS.textInverse,
+    borderRadius: 2,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 50,
+  },
+  footerText: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
   },
 });
